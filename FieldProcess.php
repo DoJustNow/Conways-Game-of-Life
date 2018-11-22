@@ -55,7 +55,7 @@ class FieldProcess
     public static function validatePackedValue($decValue): bool
     {
         return is_numeric($decValue) && (self::$minPackedValue <= $decValue)
-                && ($decValue <= self::$maxPackedValue);
+               && ($decValue <= self::$maxPackedValue);
 
     }
 
@@ -65,6 +65,10 @@ class FieldProcess
         self::$fieldCurrent = self::arrayUnpacking($decValue);
         self::addBuffer($decValue);
         if ($result = self::checkGameOver()) {
+            if($result == 2) {
+                $element = array_pop(self::$stepBuffer);
+                array_splice(self::$stepBuffer,array_search($element,self::$stepBuffer)+1);
+            }
             return $result;
         }
 
@@ -98,8 +102,9 @@ class FieldProcess
                     $neighborsCount += self::$fieldCurrent[$i + 1][$j - 1];
                 }
 
-                if ($neighborsCount === 3 || ($neighborsCount === 2
-                                && self::$fieldCurrent[$i][$j] === 1)) {
+                if ($neighborsCount === 3
+                    || ($neighborsCount === 2
+                        && self::$fieldCurrent[$i][$j] === 1)) {
                     self::$fieldNextStep[$i][$j] = 1;
                 } else {
                     self::$fieldNextStep[$i][$j] = 0;
@@ -118,7 +123,9 @@ class FieldProcess
 
     private static function checkIndex(int $i, int $j): bool
     {
-        return ($i >= 0 && $i <= self::$size - 1) && ($j >= 0 && $j <= self::$size - 1);
+        return ($i >= 0 && $i <= self::$size - 1)
+               && ($j >= 0
+                   && $j <= self::$size - 1);
     }
 
     private static function addBuffer(int $decValue)
@@ -130,7 +137,7 @@ class FieldProcess
     {
         for ($i = 0; $i < count(self::$stepBuffer); $i++) {
             if ((self::$stepBuffer[self::$generation] == self::$stepBuffer[$i])
-                    && (self::$generation != $i)) {
+                && (self::$generation != $i)) {
                 return 2;
             }
             if (self::$stepBuffer[self::$generation] == 0) {
@@ -178,6 +185,7 @@ class FieldProcess
                 $sym[7][$i][$j] = $arr[$n - $j][$n - $i];
             }
         }
+        $sym = array_unique($sym, SORT_REGULAR);
         foreach ($sym as $symArr) {
             $values[] = self::arrayPacking($symArr);
         }
@@ -188,8 +196,14 @@ class FieldProcess
     private static function add2Db(int $result)
     {
         foreach (self::$stepBuffer as $key => $value) {
-            $steps = self::$generation - $key;
-            self::$mysqli->query("INSERT INTO `fields_result` (`id`, `steps`, `result`) VALUES ('$value', '$steps', '$result')");
+            /*if (self::$mysqli->query("SELECT * FROM `fields` WHERE `id` = '$value'")->fetch_assoc()) {
+                break;
+            }*/
+            $symmetryValues = self::symmetry($value);
+            $steps          = self::$generation - $key;
+            foreach ($symmetryValues as $symmetryValue) {
+                self::$mysqli->query("INSERT INTO `fields` (`id`, `steps`, `result`) VALUES ('$symmetryValue', '$steps', '$result')");
+            }
         }
 
         return $key;
